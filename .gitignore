@@ -2,3 +2,16 @@ node_modules/
 .DS_Store
 .env
 dist/
+
+# Scraper
+scraper/output/
+scraper/scraper.log
+scraper/cookies.json
+scraper/.venv/
+
+# Python
+__pycache__/
+*.pyc
+
+# uv
+uv.lock

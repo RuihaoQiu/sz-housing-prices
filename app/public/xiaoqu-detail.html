@@ -1,0 +1,527 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>小区详情</title>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Inter','PingFang SC','Microsoft YaHei',sans-serif;padding:20px 16px;-webkit-font-smoothing:antialiased}
+.page{max-width:420px;margin:0 auto}
+.back-btn{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:600;text-decoration:none;margin-bottom:16px;letter-spacing:.04em}
+.back-btn::before{content:'←';font-size:14px}
+.header{margin-bottom:24px}
+.header h1{font-size:22px;font-weight:700;letter-spacing:-.02em;margin-bottom:4px}
+.header .meta{font-size:12px;margin-bottom:12px}
+.info-strip{display:flex;flex-wrap:wrap;gap:0;margin-bottom:6px}
+.info-chip{font-size:10.5px;padding:3px 0;margin-right:14px;white-space:nowrap}
+.info-chip strong{font-weight:600}
+.card{border-radius:24px;padding:20px 20px 16px;margin-bottom:18px}
+h2{font-weight:700;font-size:16.5px;letter-spacing:-.02em;margin-bottom:3px}
+.sub{font-size:11.5px;margin-bottom:14px}
+.src{font-size:9.5px;margin-top:10px;letter-spacing:.08em;font-weight:500}
+.ch{height:300px}
+.filter-bar{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.filter-chip{font-size:10.5px;font-weight:600;padding:4px 10px;border-radius:20px;border:1.2px solid;cursor:pointer;transition:all .15s;letter-spacing:.02em;font-family:inherit}
+svg text{font-family:'Inter','PingFang SC',sans-serif}
+.loading{text-align:center;padding:80px 20px;font-size:14px}
+.empty{text-align:center;padding:40px 20px;font-size:13px}
+.pop{transform-box:fill-box;transform-origin:center;animation:pop .5s cubic-bezier(.2,.7,.3,1.3) both}
+@keyframes pop{from{transform:scale(0)}to{transform:none}}
+.fade{animation:fade .9s ease both}
+@keyframes fade{from{opacity:0}}
+.draw{stroke-dasharray:1;stroke-dashoffset:1;animation:draw 1s cubic-bezier(.4,0,.2,1) both}
+@keyframes draw{to{stroke-dashoffset:0}}
+@media (prefers-reduced-motion:reduce){
+  .pop,.fade{animation:none}
+  .draw{animation:none;stroke-dasharray:none;stroke-dashoffset:0}
+}
+</style>
+</head>
+<body>
+<div class="page">
+  <a class="back-btn" href="/">返回地图</a>
+  <div id="content"><div class="loading">加载中…</div></div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+// THEME SYSTEM — change THEME_NAME to switch the entire page
+// Options: 'mono', 'porcelain', 'palm', 'wire'
+// ═══════════════════════════════════════════════════════════
+const THEME_NAME = 'palm';
+
+const THEMES = {
+  mono: {
+    BG:'#F0EFEB', INK:'#1C1C1A', MUTED:'#8F8E88', FAINT:'#C6C5BF', GRID:'#DEDDD6',
+    DATA:'#1C1C1A', DATA2:'#6A6963', HERO:'#1C1C1A',
+    LADDER:['#1C1C1A','#4A4944','#6A6963','#8F8E88','#B0AFA9','#C6C5BF','#D8D7D1'],
+    BAR_SELF:'#1C1C1A', BAR_OTHER:'#C6C5BF',
+    LABEL:'#6A6963', MEDIAN:'#B0AFA9', TICK:'#CFCEC7', BAND:'#E8E7E2', RULE:'#E3E2DB',
+    ROOM:{1:'#8F8E88',2:'#6A6963',3:'#1C1C1A',4:'#4A4944',5:'#B0AFA9'},
+  },
+  porcelain: {
+    BG:'#F7F2EB', INK:'#081F5C', MUTED:'rgba(8,31,92,.60)', FAINT:'rgba(8,31,92,.32)', GRID:'rgba(8,31,92,.16)',
+    DATA:'#334EAC', DATA2:'#7096D1', HERO:'#081F5C',
+    LADDER:['#081F5C','#334EAC','#5070BE','#7096D1','#9AB8E0','#BAD6EB','#D0E3FF'],
+    BAR_SELF:'#081F5C', BAR_OTHER:'#BAD6EB',
+    LABEL:'#334EAC', MEDIAN:'#7096D1', TICK:'#BAD6EB', BAND:'rgba(8,31,92,.08)', RULE:'rgba(8,31,92,.10)',
+    ROOM:{1:'#BAD6EB',2:'#7096D1',3:'#081F5C',4:'#334EAC',5:'#D0E3FF'},
+  },
+  palm: {
+    BG:'#F0EFEB', INK:'#58402E', MUTED:'rgba(88,64,46,.60)', FAINT:'rgba(88,64,46,.32)', GRID:'rgba(88,64,46,.16)',
+    DATA:'#43593B', DATA2:'#77835A', HERO:'#D4A017',
+    LADDER:['#43593B','#5A7049','#77835A','#929960','#ACAD79','#C8C8A0','#F2D17E'],
+    BAR_SELF:'#43593B', BAR_OTHER:'#ACAD79',
+    LABEL:'#77835A', MEDIAN:'#929960', TICK:'#ACAD79', BAND:'rgba(88,64,46,.08)', RULE:'rgba(88,64,46,.10)',
+    ROOM:{1:'#ACAD79',2:'#77835A',3:'#43593B',4:'#5A7049',5:'#F2D17E'},
+  },
+  wire: {
+    BG:'#F0F0EE', INK:'#1F1E1C', MUTED:'rgba(31,30,28,.60)', FAINT:'rgba(31,30,28,.32)', GRID:'rgba(31,30,28,.16)',
+    DATA:'#22211F', DATA2:'#8F8E86', HERO:'#F5572F',
+    LADDER:['#22211F','#4A4943','#6E6D66','#8F8E86','#AAAA9F','#C0BFB7','#DBDAD3'],
+    BAR_SELF:'#F5572F', BAR_OTHER:'#C0BFB7',
+    LABEL:'#6E6D66', MEDIAN:'#8F8E86', TICK:'#C0BFB7', BAND:'rgba(31,30,28,.08)', RULE:'rgba(31,30,28,.10)',
+    ROOM:{1:'#C0BFB7',2:'#8F8E86',3:'#22211F',4:'#6E6D66',5:'#DBDAD3'},
+  },
+};
+
+const T = THEMES[THEME_NAME] || THEMES.mono;
+
+// Apply theme to CSS
+document.body.style.background = T.BG;
+document.body.style.color = T.INK;
+document.querySelectorAll('.back-btn').forEach(el => { el.style.color = T.MUTED; });
+
+// ── Helpers ──
+const tipStyle = {backgroundColor:T.INK,borderWidth:0,textStyle:{color:T.BG,fontFamily:'Inter',fontSize:12},padding:[10,14]};
+const rnd = (i,k) => Math.abs(((i*73856093)^(k*19349663))%1000)/1000;
+const NS = 'http://www.w3.org/2000/svg';
+const elSvg = (p,t,a) => {const n=document.createElementNS(NS,t);for(const k in a)n.setAttribute(k,a[k]);p.appendChild(n);return n};
+const txt = (p,a,s) => {const n=elSvg(p,'text',a);n.textContent=s;return n};
+const tip = (n,s) => {const t=document.createElementNS(NS,'title');t.textContent=s;n.appendChild(t)};
+const timers = {};
+const obsReveal = (id,fn) => {
+  const n=document.getElementById(id);
+  if(!n)return;
+  const go=()=>{(timers[id]||[]).forEach(clearInterval);timers[id]=[];
+    if(n.tagName==='svg'||n.tagName==='SVG')n.innerHTML='';fn(n)};
+  const io=new IntersectionObserver(es=>{
+    if(es[0].isIntersecting){go();io.disconnect()}
+  },{threshold:.3});
+  io.observe(n);n.style.cursor='pointer';n.addEventListener('click',go);
+};
+const eReveal = (id,opt) => obsReveal(id,el=>{
+  const g=echarts.getInstanceByDom(el)||echarts.init(el);
+  g.clear();g.setOption(opt);
+});
+
+const ROOM_LABELS = {1:'一房',2:'两房',3:'三房',4:'四房',5:'五房+'};
+
+// ── Load data and render ──
+(async()=>{
+  const name=new URLSearchParams(location.search).get('name');
+  if(!name){document.getElementById('content').innerHTML='<div class="empty">未指定小区名称</div>';return}
+
+  const [dataList,comList,detailList]=await Promise.all([
+    fetch('/data.json').then(r=>r.json()),
+    fetch('/communities.json').then(r=>r.json()),
+    fetch('/details.json').then(r=>r.json()).catch(()=>[]),
+  ]);
+
+  const item=dataList.find(d=>d.name===name);
+  const community=comList.find(c=>c.name===name);
+  if(!item&&!community){document.getElementById('content').innerHTML='<div class="empty">未找到「'+name+'」</div>';return}
+
+  const info=community||{};
+  const govItem=item||{};
+  const rentals=(community&&community.rentals)||[];
+  const district=govItem.district||info.street||'';
+  const street=govItem.street||info.street||'';
+  const shangquan=info['所属商圈']||'';
+
+  document.title=name+' · 租金详情';
+
+  // Build header
+  let headerHTML='<div class="header">';
+  headerHTML+='<h1>'+name+'</h1>';
+  headerHTML+='<div class="meta" style="color:'+T.MUTED+'">'+[district,street,shangquan?shangquan+'商圈':''].filter(Boolean).join(' · ')+'</div>';
+
+  const chips=[];
+  if(info['总户数'])chips.push('<span class="info-chip" style="color:'+T.MUTED+'"><strong style="color:'+T.INK+'">'+info['总户数']+'</strong></span>');
+  if(info['建筑类型'])chips.push('<span class="info-chip" style="color:'+T.MUTED+'"><strong style="color:'+T.INK+'">'+info['建筑类型'].replace(/\|/g,' · ')+'</strong></span>');
+  if(info['竣工时间'])chips.push('<span class="info-chip" style="color:'+T.MUTED+'">竣工 <strong style="color:'+T.INK+'">'+info['竣工时间'].replace(/年、/g,' / ').replace(/年$/,'')+'</strong></span>');
+  if(info['物业费'])chips.push('<span class="info-chip" style="color:'+T.MUTED+'">物业 <strong style="color:'+T.INK+'">'+info['物业费']+'</strong></span>');
+  if(info['绿化率'])chips.push('<span class="info-chip" style="color:'+T.MUTED+'">绿化率 <strong style="color:'+T.INK+'">'+info['绿化率']+'</strong></span>');
+  if(chips.length)headerHTML+='<div class="info-strip">'+chips.join('')+'</div>';
+  headerHTML+='</div>';
+
+  // Build 小区解读 section from details.json
+  const detail=detailList.find(d=>d.name===name||d.id===String(info.anjuke_id));
+  let descHTML='';
+  if(detail&&detail['小区解读']){
+    const sections=detail['小区解读'].split('\n').filter(Boolean);
+    let items='';
+    sections.forEach(line=>{
+      const m=line.match(/^(.+?)[:：]\s*(.+)$/);
+      if(m){
+        items+='<div style="padding:8px 0;border-bottom:0.5px solid '+T.BAND+'"><span style="font-size:11px;font-weight:700;color:'+T.INK+'">'+m[1].trim()+'</span><span style="font-size:11px;color:'+T.MUTED+';margin-left:6px">'+m[2].trim()+'</span></div>';
+      }
+    });
+    if(items){
+      descHTML='<div class="card" style="background:'+T.BG+'"><h2>小区解读</h2><div style="margin-top:8px">'+items+'</div>';
+      // Extra info chips from details
+      const extras=[];
+      if(detail['停车位'])extras.push('停车 '+detail['停车位']);
+      if(detail['总建面积'])extras.push('建面 '+detail['总建面积']);
+      if(detail['产权年限'])extras.push('产权 '+detail['产权年限']);
+      if(extras.length)descHTML+='<div style="margin-top:10px;font-size:9.5px;color:'+T.FAINT+';letter-spacing:.06em;font-weight:500">'+extras.join(' · ')+'</div>';
+      descHTML+='</div>';
+    }
+  }
+
+  // Build neighbor data
+  function buildNeighborData(comList, myName, myInfo) {
+    const myLat=myInfo.lat||govItem.lat||0, myLng=myInfo.lng||govItem.lng||0;
+    if(!myLat||!myLng) return [];
+    const result=[];
+    for(const c of comList){
+      if(c.name===myName||!c.rentals||c.rentals.length<3) continue;
+      const ws=c.rentals.filter(r=>r.price_sqm&&r.area>15);
+      if(ws.length<3) continue;
+      const dlat=c.lat-myLat,dlng=c.lng-myLng;
+      const dist=Math.sqrt(dlat*dlat+dlng*dlng);
+      const sorted=ws.map(r=>r.price_sqm).sort((a,b)=>a-b);
+      result.push({name:c.name,dist,median:sorted[Math.floor(sorted.length/2)],count:c.rentals.length});
+    }
+    result.sort((a,b)=>a.dist-b.dist);
+    const nearest=result.slice(0,7);
+    const mySqm=rentals.filter(r=>r.price_sqm&&r.area>15).map(r=>r.price_sqm).sort((a,b)=>a-b);
+    if(mySqm.length>=3){
+      nearest.push({name:myName,dist:0,median:mySqm[Math.floor(mySqm.length/2)],count:rentals.length,self:true});
+    }
+    nearest.sort((a,b)=>a.median-b.median);
+    return nearest;
+  }
+
+  // Build chart containers
+  let chartsHTML='';
+  if(rentals.length>0){
+    chartsHTML+='<div class="card" style="background:'+T.BG+'"><h2 id="jitter-title"></h2><div class="sub" style="color:'+T.MUTED+'">一个点 = 一套在租房源 · 按房型分列 · 纵轴为月租金</div><div class="filter-bar" id="jitter-filter"></div><div class="ch" id="jitter"></div><div class="src" style="color:'+T.FAINT+'" id="jitter-src">JITTER STRIP · 安居客</div></div>';
+
+    const withArea=rentals.filter(r=>r.area&&r.price_sqm&&r.area>15);
+    if(withArea.length>=5){
+      chartsHTML+='<div class="card" style="background:'+T.BG+'"><h2 id="plumb-title"></h2><div class="sub" style="color:'+T.MUTED+'">横轴面积 · 纵轴单价 · 铅垂线从地板读面积</div><svg id="plumb" viewBox="0 0 400 340" preserveAspectRatio="xMidYMid meet" style="width:100%;display:block"></svg><div class="src" style="color:'+T.FAINT+'" id="plumb-src">PLUMB SCATTER · 安居客</div></div>';
+    }
+  }
+
+  const govVals=[govItem.high_rent,govItem.low_rent,govItem.multi_rent].filter(v=>v!=null);
+  const withSqm=rentals.filter(r=>r.price_sqm&&r.area>15);
+  if(govVals.length>0&&withSqm.length>=3){
+    chartsHTML+='<div class="card" style="background:'+T.BG+'"><h2 id="dumb-title"></h2><div class="sub" style="color:'+T.MUTED+'">空心 = 市场中位价 · 实心 = 政府参考价 · 串珠 = 差额（元/m²/月）</div><svg id="dumbbell" viewBox="0 0 400 220" preserveAspectRatio="xMidYMid meet" style="width:100%;display:block"></svg><div class="src" style="color:'+T.FAINT+'">DUMBBELL QUEUE · 深圳住建局 + 安居客</div></div>';
+  } else if(govVals.length>0){
+    const govMin=Math.min(...govVals),govMax=Math.max(...govVals);
+    const priceText=govMin===govMax?govMin+' 元/m²/月':govMin+'–'+govMax+' 元/m²/月';
+    chartsHTML+='<div class="card" style="background:'+T.BG+'"><h2>政府参考租金</h2><div class="sub" style="color:'+T.MUTED+'">'+priceText+'</div></div>';
+  }
+
+  const neighborData=buildNeighborData(comList,name,{...info,lat:govItem.lat||info.lat,lng:govItem.lng||info.lng});
+  if(neighborData.length>1){
+    const nbH=46+neighborData.length*36;
+    chartsHTML+='<div class="card" style="background:'+T.BG+'"><h2 id="nb-title"></h2><div class="sub" style="color:'+T.MUTED+'">中位单价（元/m²/月）· 按价格排序 · 周边 '+Math.min(neighborData.length-1,7)+' 个小区</div><svg id="neighbor" viewBox="0 0 400 '+nbH+'" preserveAspectRatio="xMidYMid meet" style="width:100%;display:block"></svg><div class="src" style="color:'+T.FAINT+'">RUNG BARS · 安居客</div></div>';
+  }
+
+  if(!chartsHTML)chartsHTML='<div class="empty">暂无在租数据</div>';
+
+  document.getElementById('content').innerHTML=headerHTML+chartsHTML+descHTML;
+
+  // ═══ Render charts ═══
+
+  // G15 Jitter Strip — vertical: rooms on x-axis, price on y-axis
+  if(rentals.length>0){
+    const allRoomKeys=[...new Set(rentals.map(r=>Math.min(r.rooms||1,5)))].sort((a,b)=>a-b);
+
+    function renderJitter(filterRoom){
+      const subset=filterRoom==null?rentals:rentals.filter(r=>Math.min(r.rooms||1,5)===filterRoom);
+      const groups={};
+      subset.forEach(r=>{const k=Math.min(r.rooms||1,5);if(!groups[k])groups[k]=[];groups[k].push(r)});
+      const cats=Object.keys(groups).sort((a,b)=>a-b);
+      const catLabels=cats.map(k=>ROOM_LABELS[k]||k+'房');
+      const mainCat=cats.reduce((a,b)=>groups[b].length>groups[a].length?b:a,cats[0]);
+      const mainPrices=groups[mainCat].map(r=>r.price).sort((a,b)=>a-b);
+      const p25=mainPrices[Math.floor(mainPrices.length*.25)];
+      const p75=mainPrices[Math.floor(mainPrices.length*.75)];
+
+      const titleEl=document.getElementById('jitter-title');
+      if(titleEl){
+        if(filterRoom!=null)titleEl.textContent=(ROOM_LABELS[filterRoom]||filterRoom+'房')+' · 价格 '+p25+'–'+p75;
+        else titleEl.textContent=ROOM_LABELS[mainCat]+'为主，价格集中在 '+p25+'–'+p75;
+      }
+
+      const flat=[];
+      cats.forEach((k,ci)=>{groups[k].forEach((r,i)=>{
+        const jx=ci+(rnd(i+13,ci+5)-.5)*.58;
+        flat.push({value:[jx,r.price],rental:r});
+      })});
+
+      // P25–P75 band for the visible subset
+      const allPrices=subset.map(r=>r.price).sort((a,b)=>a-b);
+      const bandP25=allPrices[Math.floor(allPrices.length*.25)];
+      const bandP75=allPrices[Math.floor(allPrices.length*.75)];
+
+      const el=document.getElementById('jitter');
+      const g=echarts.getInstanceByDom(el)||echarts.init(el);
+      g.clear();
+      g.setOption({
+        animationDuration:450,animationEasing:'cubicOut',
+        animationDelay:i=>i<flat.length?Math.round(flat[i].value[0])*260+(i%37)*9:0,
+        tooltip:{...tipStyle,formatter:p=>{
+          const r=flat[p.dataIndex].rental;
+          return (r.layout||'')+' · '+r.price+'元/月'+(r.area?' · '+r.area+'m²':'');
+        }},
+        grid:{left:40,right:12,top:16,bottom:44},
+        yAxis:{type:'value',name:'元/月',nameTextStyle:{color:T.FAINT,fontSize:8.5},
+          splitLine:{lineStyle:{color:T.GRID}},axisLine:{show:false},axisTick:{show:false},
+          axisLabel:{color:T.MUTED,fontFamily:'Inter',fontSize:9.5,
+            formatter:v=>{if(v>=10000)return(v/10000).toFixed(1).replace(/\.0$/,'')+'w';if(v>=1000)return(v/1000).toFixed(0)+'k';return v}}},
+        xAxis:{type:'value',min:-.6,max:cats.length-.4,
+          splitLine:{show:false},axisLine:{show:false},axisTick:{show:false},axisLabel:{show:false}},
+        series:[
+        {type:'scatter',data:flat.map(f=>f.value),symbolSize:7,
+          markArea:subset.length>=4?{silent:true,itemStyle:{color:T.BAND,opacity:.5},
+            label:{show:true,position:'insideTopLeft',color:T.MUTED,fontSize:8,fontWeight:600,fontFamily:'Inter',
+              formatter:'P25–P75: '+bandP25+'–'+bandP75,offset:[4,-14]},
+            data:[[{yAxis:bandP25},{yAxis:bandP75}]]}:undefined,
+          itemStyle:{color:p=>{const ci=Math.min(Math.round(p.value[0]),cats.length-1);return T.ROOM[cats[ci]]||T.LADDER[Math.min(ci,T.LADDER.length-1)]},opacity:.62}},
+        {type:'scatter',silent:true,symbolSize:0,
+          data:catLabels.map((c,i)=>({value:[i,0],label:{show:true,position:'bottom',offset:[0,6],
+            color:T.LABEL,fontFamily:'Inter',fontSize:10,fontWeight:700,
+            formatter:c+'\n('+groups[cats[i]].length+')'}}))}],
+      });
+      const srcEl=document.getElementById('jitter-src');
+      if(srcEl)srcEl.textContent='JITTER STRIP · '+subset.length+' 套'+(filterRoom!=null?' · '+ROOM_LABELS[filterRoom]:'')+ ' · 安居客';
+    }
+
+    // Build filter chips
+    const filterBar=document.getElementById('jitter-filter');
+    if(filterBar){
+      let activeFilter=null;
+      const chips=[];
+      const makeChip=(label,value)=>{
+        const btn=document.createElement('button');
+        btn.className='filter-chip';
+        btn.textContent=label;
+        btn.addEventListener('click',()=>{
+          activeFilter=value;
+          chips.forEach(c=>{
+            const on=c.value===value;
+            c.btn.style.background=on?T.INK:'transparent';
+            c.btn.style.color=on?T.BG:T.MUTED;
+            c.btn.style.borderColor=on?T.INK:T.FAINT;
+          });
+          renderJitter(value);
+        });
+        filterBar.appendChild(btn);
+        return btn;
+      };
+      const allBtn=makeChip('全部',null);
+      chips.push({btn:allBtn,value:null});
+      allBtn.style.background=T.INK;allBtn.style.color=T.BG;allBtn.style.borderColor=T.INK;
+      allRoomKeys.forEach(k=>{
+        const btn=makeChip(ROOM_LABELS[k]||k+'房',k);
+        btn.style.background='transparent';btn.style.color=T.MUTED;btn.style.borderColor=T.FAINT;
+        chips.push({btn,value:k});
+      });
+    }
+
+    renderJitter(null);
+  }
+
+  // F8 Plumb Scatter
+  const ptsAll=rentals.filter(r=>r.area&&r.price_sqm&&r.area>15);
+  if(ptsAll.length>=5){
+    const pts=ptsAll;
+    const plumbTitle=document.getElementById('plumb-title');
+    const areas=pts.map(r=>r.area),sqms=pts.map(r=>r.price_sqm);
+    const bigArea=pts.filter(r=>r.area>100);
+    const smallArea=pts.filter(r=>r.area<60);
+    if(bigArea.length>0&&smallArea.length>0){
+      const bigMedian=bigArea.map(r=>r.price_sqm).sort((a,b)=>a-b)[Math.floor(bigArea.length/2)];
+      const smallMedian=smallArea.map(r=>r.price_sqm).sort((a,b)=>a-b)[Math.floor(smallArea.length/2)];
+      if(plumbTitle)plumbTitle.textContent=bigMedian<smallMedian?'大面积不一定贵，单价反而更低':'面积与单价的关系';
+    } else {
+      if(plumbTitle)plumbTitle.textContent='面积与单价分布';
+    }
+
+    obsReveal('plumb',s=>{
+      const X0=56,X1=380,base=278,top=30;
+      const minA=Math.floor(Math.min(...areas)/10)*10;
+      const maxA=Math.ceil(Math.max(...areas)/10)*10;
+      const minS=Math.floor(Math.min(...sqms)/10)*10;
+      const maxS=Math.ceil(Math.max(...sqms)/10)*10;
+      const rangeA=maxA-minA||1,rangeS=maxS-minS||1;
+      const mapX=a=>X0+(a-minA)/rangeA*(X1-X0);
+      const mapY=v=>base-(v-minS)/rangeS*(base-top);
+
+      const ticks=10;
+      for(let g=0;g<=ticks;g++){
+        const x=X0+g/ticks*(X1-X0);
+        elSvg(s,'line',{x1:x,y1:base,x2:x,y2:base-(g%5===0?8:4),stroke:T.TICK,'stroke-width':.6,class:'fade',style:'animation-delay:'+g*.01+'s'});
+      }
+      elSvg(s,'line',{x1:X0-6,y1:base,x2:X1+6,y2:base,stroke:T.GRID,'stroke-width':.8,class:'fade'});
+      for(let g=0;g<=ticks;g+=2){
+        const val=minA+g/ticks*rangeA;
+        txt(s,{x:X0+g/ticks*(X1-X0),y:base+18,'font-size':8,'font-weight':600,fill:T.FAINT,'text-anchor':'middle',class:'fade'},Math.round(val)+'m²');
+      }
+      const yTicks=5;
+      for(let g=0;g<=yTicks;g++){
+        const val=minS+g/yTicks*rangeS;const y=mapY(val);
+        elSvg(s,'line',{x1:X0,y1:y,x2:X1,y2:y,stroke:T.GRID,'stroke-width':.4,class:'fade',style:'animation-delay:'+g*.02+'s'});
+        txt(s,{x:X0-8,y:y+3,'font-size':7.5,'font-weight':600,fill:T.FAINT,'text-anchor':'end',class:'fade'},Math.round(val));
+      }
+      txt(s,{x:26,y:mapY(maxS-5),'font-size':7,'font-weight':600,fill:T.FAINT,
+        transform:'rotate(-90 26 '+mapY(maxS-5)+')','text-anchor':'end','letter-spacing':'.08em',class:'fade'},'元/M²/月 ↑');
+
+      const sorted=[...sqms].sort((a,b)=>a-b);
+      const median=sorted[Math.floor(sorted.length/2)];
+      const sqmP25=sorted[Math.floor(sorted.length*.25)];
+      const sqmP75=sorted[Math.floor(sorted.length*.75)];
+
+      // P25–P75 band
+      const bandY1=mapY(sqmP75),bandY2=mapY(sqmP25);
+      elSvg(s,'rect',{x:X0,y:bandY1,width:X1-X0,height:bandY2-bandY1,rx:4,fill:T.BAND,opacity:.5,class:'fade',style:'animation-delay:.15s'});
+      txt(s,{x:X0+4,y:bandY1-5,'font-size':7.5,'font-weight':600,fill:T.MUTED,'text-anchor':'start',class:'fade',style:'animation-delay:.25s'},
+        'P25–P75: '+Math.round(sqmP25)+'–'+Math.round(sqmP75));
+
+      const medY=mapY(median);
+      elSvg(s,'line',{x1:X0,y1:medY,x2:X1,y2:medY,stroke:T.MEDIAN,'stroke-width':1,'stroke-dasharray':'4 3',class:'draw',style:'animation-delay:.3s'});
+      txt(s,{x:X1,y:medY-6,'font-size':8,'font-weight':700,fill:T.MUTED,'text-anchor':'end',class:'fade',style:'animation-delay:.5s'},'中位 '+Math.round(median));
+
+      const best=pts.reduce((a,b)=>b.price_sqm<a.price_sqm?b:a);
+      const worst=pts.reduce((a,b)=>b.price_sqm>a.price_sqm?b:a);
+      pts.forEach((r,i)=>{
+        const x=mapX(r.area),y=mapY(r.price_sqm);
+        const rm=Math.min(r.rooms||1,5);
+        const hero=r===best||r===worst;
+        elSvg(s,'line',{x1:x,y1:base,x2:x,y2:y,stroke:T.MEDIAN,'stroke-width':.45,opacity:.5,class:'fade',style:'animation-delay:'+(.2+i*.02)+'s'});
+        const dot=elSvg(s,'circle',{cx:x,cy:y,r:hero?4.5:2.8,fill:hero?T.HERO:(T.ROOM[rm]||T.MUTED),class:'pop',style:'animation-delay:'+(.25+i*.02)+'s'});
+        tip(dot,(r.layout||'')+' · '+r.area+'m² · '+r.price_sqm+'元/m²');
+        if(hero)txt(s,{x,y:y-12,'font-size':8.5,'font-weight':800,fill:T.INK,'text-anchor':'middle',
+          style:'paint-order:stroke;stroke:'+T.BG+';stroke-width:3px;animation-delay:.8s',class:'fade'},r.price_sqm+'元 · '+r.area+'m²');
+      });
+      txt(s,{x:200,y:326,'font-size':7,'font-weight':600,fill:T.MEDIAN,'text-anchor':'middle','letter-spacing':'.12em',class:'fade',style:'animation-delay:1s'},
+        '铅垂线从地板读面积 · 高度读单价 · '+pts.length+' 套');
+      const srcEl=document.getElementById('plumb-src');
+      if(srcEl)srcEl.textContent='PLUMB SCATTER · '+pts.length+' 套有面积数据 · 安居客';
+    });
+  }
+
+  // F12 Dumbbell Queue
+  if(govVals.length>0&&withSqm.length>=3){
+    const sqms2=withSqm.map(r=>r.price_sqm).sort((a,b)=>a-b);
+    const marketMedian=sqms2[Math.floor(sqms2.length/2)];
+    const marketP25=sqms2[Math.floor(sqms2.length*.25)];
+    const marketP75=sqms2[Math.floor(sqms2.length*.75)];
+    const govMin=Math.min(...govVals),govMax=Math.max(...govVals);
+
+    const dumbTitle=document.getElementById('dumb-title');
+    if(dumbTitle)dumbTitle.textContent=govMin>marketMedian?'政府参考略高于市场中位':'市场价高于政府参考';
+
+    const D=[];
+    if(govItem.multi_rent!=null)D.push(['多层参考',Math.round(marketMedian),govItem.multi_rent]);
+    if(govItem.high_rent!=null)D.push(['高层参考',Math.round(marketMedian),govItem.high_rent]);
+    if(govItem.low_rent!=null)D.push(['低层参考',Math.round(marketMedian),govItem.low_rent]);
+
+    obsReveal('dumbbell',s=>{
+      const y0=i=>70+i*66,X0=120,X1=370;
+      const allV=[marketMedian,marketP25,marketP75,...govVals];
+      const lo=Math.floor(Math.min(...allV)*0.9);
+      const hi=Math.ceil(Math.max(...allV)*1.1);
+      const mapX=v=>X0+(v-lo)/(hi-lo)*(X1-X0);
+
+      const rxl=mapX(marketP25),rxr=mapX(marketP75);
+      elSvg(s,'rect',{x:rxl,y:40,width:rxr-rxl,height:40+D.length*66,rx:6,fill:T.BAND,opacity:.5,class:'fade'});
+      txt(s,{x:(rxl+rxr)/2,y:34,'font-size':7.5,'font-weight':600,fill:T.MUTED,'text-anchor':'middle',class:'fade'},'市场 P25–P75 区间');
+
+      D.forEach(([label,market,gov],i)=>{
+        const y=y0(i),xa=mapX(market),xb=mapX(gov);
+        txt(s,{x:110,y:y+3,'font-size':8.5,'font-weight':700,fill:T.LABEL,'text-anchor':'end','letter-spacing':'.04em',class:'fade',style:'animation-delay:'+i*.1+'s'},label);
+        elSvg(s,'line',{x1:X0-6,y1:y,x2:X1+6,y2:y,stroke:T.RULE,'stroke-width':.7,class:'fade',style:'animation-delay:'+i*.08+'s'});
+        const diff=Math.abs(gov-market);
+        const lo2=Math.min(xa,xb),hi2=Math.max(xa,xb);
+        for(let k=0;k<diff;k++){
+          const t=(k+.5)/diff,x=lo2+t*(hi2-lo2),yy=y+(rnd(k+1,i+3)-.5)*2.6;
+          elSvg(s,'circle',{cx:x,cy:yy,r:1.5+rnd(k+2,i+4)*.9,fill:T.MUTED,opacity:.85,class:'pop',style:'animation-delay:'+(.3+i*.1+k*.04)+'s'});
+        }
+        elSvg(s,'circle',{cx:xa,cy:y,r:4.2,fill:T.BG,stroke:T.INK,'stroke-width':1.3,class:'pop',style:'animation-delay:'+(.2+i*.1)+'s'});
+        const gd=elSvg(s,'circle',{cx:xb,cy:y,r:4.6,fill:T.HERO,class:'pop',style:'animation-delay:'+(.6+i*.1)+'s'});
+        tip(gd,label+' — 市场中位 '+market+' → 政府参考 '+gov+' 元/m²/月');
+        txt(s,{x:xa,y:y-12,'font-size':9,'font-weight':700,fill:T.MEDIAN,'text-anchor':'middle',class:'fade',style:'animation-delay:'+(.3+i*.1)+'s'},market);
+        txt(s,{x:xb,y:y-12,'font-size':10,'font-weight':800,fill:T.INK,'text-anchor':'middle',class:'fade',style:'animation-delay:'+(.7+i*.1)+'s'},gov);
+      });
+
+      const scaleTicks=5;
+      const bottomY=70+D.length*66+20;
+      for(let g=0;g<=scaleTicks;g++){
+        const val=lo+g/scaleTicks*(hi-lo),x=X0+g/scaleTicks*(X1-X0);
+        txt(s,{x,y:bottomY,'font-size':7.5,'font-weight':600,fill:T.FAINT,'text-anchor':'middle',class:'fade'},Math.round(val));
+      }
+      txt(s,{x:(X0+X1)/2,y:bottomY+16,'font-size':7,'font-weight':600,fill:T.MEDIAN,'text-anchor':'middle','letter-spacing':'.12em',class:'fade',style:'animation-delay:1s'},
+        '空心 = 市场中位 · 实心 = 政府参考 · 串珠 = 差额 · 元/M²/月');
+    });
+  }
+
+  // F1 Rung Bars — Neighbor comparison
+  if(neighborData.length>1){
+    const selfIdx=neighborData.findIndex(d=>d.self);
+    const selfMedian=selfIdx>=0?neighborData[selfIdx].median:0;
+    const maxMedian=Math.max(...neighborData.map(d=>d.median));
+    const cheaper=neighborData.filter(d=>!d.self&&d.median<selfMedian).length;
+    const total=neighborData.length-1;
+    const nbTitle=document.getElementById('nb-title');
+    if(nbTitle){
+      if(cheaper===0)nbTitle.textContent='周边最实惠的选择';
+      else if(cheaper===total)nbTitle.textContent='周边租金最高';
+      else if(cheaper<=total/2)nbTitle.textContent='租金低于多数周边小区';
+      else nbTitle.textContent='租金高于多数周边小区';
+    }
+
+    obsReveal('neighbor',s=>{
+      const X0=140,X1=340,rowH=36,topPad=20;
+      const maxV=Math.ceil(maxMedian/10)*10;
+      neighborData.forEach((d,i)=>{
+        const y=topPad+i*rowH+rowH/2;
+        const isSelf=!!d.self;
+        const barW=(d.median/maxV)*(X1-X0);
+
+        const nameStr=d.name.length>6?d.name.slice(0,6)+'…':d.name;
+        txt(s,{x:X0-8,y:y+3.5,'font-size':isSelf?9.5:8.5,'font-weight':isSelf?800:600,
+          fill:isSelf?T.INK:T.LABEL,'text-anchor':'end',class:'fade',
+          style:'animation-delay:'+i*.06+'s'},nameStr);
+
+        elSvg(s,'line',{x1:X0,y1:y,x2:X1,y2:y,stroke:T.BAND,'stroke-width':.6,class:'fade'});
+
+        const barR=elSvg(s,'rect',{x:X0,y:y-5,width:0,height:10,rx:5,
+          fill:isSelf?T.BAR_SELF:T.BAR_OTHER,class:'fade',style:'animation-delay:'+(.1+i*.06)+'s'});
+        setTimeout(()=>barR.setAttribute('width',barW),10+i*60);
+        barR.style.transition='width .5s cubic-bezier(.2,.7,.3,1)';
+
+        txt(s,{x:X1+8,y:y+3.5,'font-size':isSelf?9:8,'font-weight':isSelf?800:600,
+          fill:isSelf?T.INK:T.MUTED,'text-anchor':'start',class:'fade',
+          style:'animation-delay:'+(.3+i*.06)+'s'},Math.round(d.median));
+
+        txt(s,{x:X1+36,y:y+3.5,'font-size':7,'font-weight':500,
+          fill:T.FAINT,'text-anchor':'start',class:'fade',
+          style:'animation-delay:'+(.35+i*.06)+'s'},d.count+'套');
+
+        if(isSelf) tip(barR,name+' · 中位 '+Math.round(d.median)+' 元/m²/月');
+      });
+    });
+  }
+})();
+</script>
+</body>
+</html>

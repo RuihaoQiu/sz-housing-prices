@@ -1,0 +1,529 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+  background: #fff;
+  color: #1a1a1a;
+  overflow: hidden;
+  height: 100dvh;
+  -webkit-font-smoothing: antialiased;
+}
+
+#root {
+  height: 100%;
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  position: relative;
+}
+
+/* Top bar — minimal */
+.top-bar {
+  padding: 12px 16px 8px;
+  z-index: 1000;
+  background: #fff;
+}
+
+.top-bar h1 {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  color: #1a1a1a;
+  margin-bottom: 8px;
+}
+
+/* Search — clean input */
+.search-bar {
+  position: relative;
+}
+
+.search-bar input {
+  width: 100%;
+  padding: 10px 12px;
+  border: none;
+  border-radius: 10px;
+  font-size: 15px;
+  outline: none;
+  background: #f2f2f7;
+  color: #1a1a1a;
+}
+
+.search-bar input::placeholder {
+  color: #8e8e93;
+}
+
+.search-bar input:focus {
+  background: #e8e8ed;
+}
+
+.search-results {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: #fff;
+  border-radius: 12px;
+  list-style: none;
+  max-height: 280px;
+  overflow-y: auto;
+  z-index: 1001;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.12);
+}
+
+.search-results li {
+  padding: 12px 14px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.search-results li + li {
+  border-top: 0.5px solid #f0f0f0;
+}
+
+.search-results li:active {
+  background: #f2f2f7;
+}
+
+.result-name {
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.result-meta {
+  font-size: 12px;
+  color: #8e8e93;
+}
+
+/* Filter bar — tight pills */
+.filter-bar {
+  padding: 6px 16px 8px;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  z-index: 999;
+  flex-wrap: wrap;
+  background: #fff;
+}
+
+.type-toggle,
+.room-toggle {
+  display: flex;
+  gap: 0;
+  background: #f2f2f7;
+  border-radius: 8px;
+  padding: 2px;
+}
+
+.type-toggle button,
+.room-toggle button {
+  padding: 4px 12px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  font-size: 13px;
+  color: #8e8e93;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.15s;
+}
+
+.type-toggle button.active,
+.room-toggle button.active {
+  background: #fff;
+  color: #1a1a1a;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+
+/* Map */
+.map {
+  flex: 1;
+  z-index: 1;
+  background: #F0EFEB;
+}
+
+.district-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: #aaa;
+  text-align: center;
+  background: none !important;
+  border: none !important;
+  white-space: nowrap;
+  pointer-events: none;
+  letter-spacing: 2px;
+}
+
+.marker-label {
+  white-space: nowrap;
+  background: none !important;
+  border: none !important;
+  pointer-events: none;
+  text-align: center;
+}
+
+.label-name {
+  font-size: 11px;
+  font-weight: 500;
+  color: rgba(0,0,0,0.4);
+}
+
+.label-price {
+  font-size: 10px;
+  color: rgba(0,0,0,0.3);
+}
+
+/* Legend — subtle overlay */
+.legend {
+  position: absolute;
+  bottom: 16px;
+  left: 12px;
+  background: rgba(255,255,255,0.92);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  padding: 8px 10px;
+  border-radius: 10px;
+  font-size: 10px;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.legend-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.legend-label {
+  font-weight: 600;
+  font-size: 10px;
+  color: #8e8e93;
+}
+
+.legend-bar {
+  height: 6px;
+  width: 100px;
+  border-radius: 3px;
+  background: linear-gradient(to right, #D8D7D1, #B0AFA9, #8F8E88, #4A4944, #1C1C1A);
+}
+
+.legend-range {
+  display: flex;
+  justify-content: space-between;
+  color: #8e8e93;
+  font-size: 9px;
+}
+
+/* Price Card — bottom sheet */
+.price-card {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: #fff;
+  padding: 20px 20px 28px;
+  border-radius: 16px 16px 0 0;
+  box-shadow: 0 -1px 20px rgba(0,0,0,0.08);
+  z-index: 1001;
+  animation: slideUp 0.25s ease-out;
+}
+
+.price-card::before {
+  content: '';
+  display: block;
+  width: 36px;
+  height: 4px;
+  background: #d1d1d6;
+  border-radius: 2px;
+  margin: 0 auto 14px;
+}
+
+@keyframes slideUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+.price-card h3 {
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 4px;
+  padding-right: 32px;
+}
+
+.card-meta {
+  font-size: 13px;
+  color: #8e8e93;
+  margin-bottom: 12px;
+}
+
+.card-prices {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.price-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 0.5px solid #f0f0f0;
+}
+
+.price-row:last-child {
+  border-bottom: none;
+}
+
+.price-label {
+  font-size: 14px;
+  color: #8e8e93;
+}
+
+.price-value {
+  font-size: 15px;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+.close-btn {
+  position: absolute;
+  top: 18px;
+  right: 16px;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: #f2f2f7;
+  border-radius: 50%;
+  font-size: 16px;
+  line-height: 28px;
+  text-align: center;
+  cursor: pointer;
+  color: #8e8e93;
+}
+
+/* Community card — extended bottom sheet */
+.community-card {
+  max-height: 70vh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Price comparison */
+.price-compare {
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  background: #fafafa;
+  border-radius: 10px;
+}
+
+.compare-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.compare-row:last-of-type {
+  margin-bottom: 6px;
+}
+
+.compare-label {
+  font-size: 11px;
+  color: #8e8e93;
+  width: 48px;
+  flex-shrink: 0;
+  text-align: right;
+}
+
+.compare-bar-wrap {
+  flex: 1;
+  position: relative;
+  height: 18px;
+}
+
+.compare-range {
+  position: absolute;
+  top: 4px;
+  height: 10px;
+  border-radius: 5px;
+}
+
+.gov-range {
+  background: #fde6d5;
+  border: 1.5px solid #d85a30;
+}
+
+.market-range {
+  background: #dbeafe;
+  border: 1.5px solid #007aff;
+}
+
+.compare-median {
+  position: absolute;
+  top: 0;
+  width: 2px;
+  height: 18px;
+  background: #007aff;
+  border-radius: 1px;
+  transform: translateX(-1px);
+}
+
+.compare-val {
+  position: absolute;
+  top: -14px;
+  font-size: 10px;
+  font-weight: 600;
+  color: #1a1a1a;
+  white-space: nowrap;
+  transform: translateX(-50%);
+}
+
+.compare-axis {
+  display: flex;
+  justify-content: space-between;
+  font-size: 9px;
+  color: #c7c7cc;
+  margin-top: 2px;
+}
+
+/* Info grid */
+.info-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  margin-bottom: 12px;
+}
+
+.info-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 0;
+  border-bottom: 0.5px solid #f0f0f0;
+}
+
+.info-item:nth-child(odd) {
+  padding-right: 12px;
+}
+
+.info-item:nth-child(even) {
+  padding-left: 12px;
+  border-left: 0.5px solid #f0f0f0;
+}
+
+.info-label {
+  font-size: 11px;
+  color: #8e8e93;
+}
+
+.info-value {
+  font-size: 13px;
+  font-weight: 500;
+  color: #1a1a1a;
+}
+
+/* Section title */
+.section-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1a1a1a;
+  margin-bottom: 8px;
+}
+
+/* Price chart */
+.price-chart {
+  margin-bottom: 4px;
+}
+
+.chart-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.chart-filters {
+  display: flex;
+  gap: 0;
+  background: #f2f2f7;
+  border-radius: 8px;
+  padding: 2px;
+  overflow-x: auto;
+  flex-shrink: 1;
+  min-width: 0;
+}
+
+.chart-filters button {
+  padding: 4px 10px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  font-size: 12px;
+  color: #8e8e93;
+  cursor: pointer;
+  font-weight: 500;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.15s;
+}
+
+.chart-filters button.active {
+  background: #fff;
+  color: #1a1a1a;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+
+.chart-mode {
+  display: flex;
+  gap: 0;
+  background: #f2f2f7;
+  border-radius: 8px;
+  padding: 2px;
+  flex-shrink: 0;
+}
+
+.chart-mode button {
+  padding: 4px 10px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  font-size: 12px;
+  color: #8e8e93;
+  cursor: pointer;
+  font-weight: 500;
+  white-space: nowrap;
+  transition: all 0.15s;
+}
+
+.chart-mode button.active {
+  background: #fff;
+  color: #1a1a1a;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+
+.filter-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--dot-color, #8e8e93);
+}
+
+.chart-canvas {
+  width: 100%;
+  height: 180px;
+  display: block;
+}
