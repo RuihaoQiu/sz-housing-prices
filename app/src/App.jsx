@@ -85,7 +85,7 @@ function RoadLayer() {
   const layerRef = useRef(null)
 
   useEffect(() => {
-    fetch('/roads.json')
+    fetch(import.meta.env.BASE_URL + 'roads.json')
       .then(r => r.json())
       .then(geojson => {
         const layer = L.geoJSON(geojson, {
@@ -609,10 +609,10 @@ export default function App() {
   const [showType, setShowType] = useState('xiaoqu')
 
   useEffect(() => {
-    fetch('/data.json')
+    fetch(import.meta.env.BASE_URL + 'data.json')
       .then(r => r.json())
       .then(setData)
-    fetch('/communities.json')
+    fetch(import.meta.env.BASE_URL + 'communities.json')
       .then(r => r.json())
       .then(list => {
         const byName = {}
@@ -627,7 +627,7 @@ export default function App() {
 
   const handleSelect = useCallback((item) => {
     if (item.type === 'xiaoqu') {
-      window.location.href = '/xiaoqu-detail.html?name=' + encodeURIComponent(item.name)
+      window.location.href = import.meta.env.BASE_URL + 'xiaoqu-detail.html?name=' + encodeURIComponent(item.name)
       return
     }
     setSelected(item)
