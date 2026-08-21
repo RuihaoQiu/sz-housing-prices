@@ -6,7 +6,8 @@ dist/
 # Scraper
 scraper/output/
 scraper/scraper.log
-scraper/cookies.json
+scraper/cookies*.json
+scraper/logs/
 scraper/.venv/
 
 # Python
