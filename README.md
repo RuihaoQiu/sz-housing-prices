@@ -29,20 +29,23 @@ Make Shenzhen Nanshan's rental market transparent — government reference price
 | 安居客 | `scraper/output/nanshan_rentals.json` | 11,000+ actual rental listings |
 | 安居客 | `scraper/output/nanshan_communities.json` | Community metadata (475 communities) |
 | 安居客 | `scraper/output/nanshan_details.json` | Community descriptions (小区解读) |
+| 乐有家 | `scraper/output/leyoujia_nanshan_rentals.json` | 8,000+ Nanshan rental listings with daily diff tracking |
+| 乐有家 | `scraper/output/leyoujia_nanshan_communities.json` | 900+ communities with listing counts |
 
 ## Project Structure
 
 ```
 data/               Government CSV data (geocoded)
-scraper/            Anjuke scraper (Python, requests + BeautifulSoup)
+scraper/            Scrapers (Python, requests + BeautifulSoup)
+  leyoujia_scraper.py    乐有家 scraper — concurrent workers, daily diff detection
+  export_cookies.py      Cookie export helper (Anjuke + Leyoujia)
+  run_daily.sh           Cron wrapper for daily scraping
 scripts/            Data processing (match_communities.py merges gov + Anjuke data)
 app/                Vite + React frontend
   src/App.jsx       Map view with theme system
   public/           Static assets + merged JSON data
-    xiaoqu-detail.html   Community detail page (standalone, ECharts + hand-drawn SVG)
-    communities.json     Merged data: gov prices + Anjuke metadata + rental listings
-    data.json            Government reference prices for map dots
-    details.json         Community descriptions
+.claude/skills/     Claude Code skills
+  recommend.md      AI apartment recommendation skill
 ```
 
 ## Run locally
@@ -61,9 +64,50 @@ To share on your local network (e.g. test on phone):
 npm run dev -- --host
 ```
 
-## Update data
+## Scraper
 
-1. Run the scraper to fetch latest listings:
+### Setup (one-time)
+
+1. Login to `shenzhen.leyoujia.com` in Chrome
+2. Open DevTools → Network tab → copy the `Cookie` header value from any request
+3. Export cookies:
+   ```bash
+   cd scraper
+   uv run python export_cookies.py --leyoujia
+   ```
+   Paste the cookie string when prompted.
+
+### Run manually
+
+```bash
+cd scraper
+uv run python leyoujia_scraper.py --workers 5
+```
+
+Scrapes all 21 Nanshan sub-areas with 5 concurrent workers (~8 min). Compares against previous data and reports new/removed listings. Each listing gets a `scraped_at` date for tracking when it first appeared.
+
+### Daily cron
+
+```bash
+# Install (runs at 2:00 CEST / 8:00 CST daily)
+echo "0 2 * * * /path/to/scraper/run_daily.sh" | crontab -
+```
+
+Logs are saved to `scraper/logs/YYYY-MM-DD.log`.
+
+## AI Recommendations
+
+Use the Claude Code skill to get personalized apartment recommendations:
+
+```
+/recommend
+```
+
+Filters the scraped data by your preferences (location, price, rooms, area, year, orientation, floor) and highlights today's new listings with match/mismatch analysis.
+
+## Update map data
+
+1. Run the Anjuke scraper:
    ```bash
    cd scraper
    uv run python main.py
