@@ -132,6 +132,8 @@ const ROOM_LABELS = {1:'一房',2:'两房',3:'三房',4:'四房',5:'五房+'};
     fetch(base+'communities.json').then(r=>r.json()),
     fetch(base+'details.json').then(r=>r.json()).catch(()=>[]),
   ]);
+  // Load per-community rentals on demand
+  const rentals=await fetch(base+'rentals/'+encodeURIComponent(name)+'.json').then(r=>r.ok?r.json():[]).catch(()=>[]);
 
   const item=dataList.find(d=>d.name===name);
   const community=comList.find(c=>c.name===name);
@@ -139,7 +141,6 @@ const ROOM_LABELS = {1:'一房',2:'两房',3:'三房',4:'四房',5:'五房+'};
 
   const info=community||{};
   const govItem=item||{};
-  const rentals=(community&&community.rentals)||[];
   const district=govItem.district||info.street||'';
   const street=govItem.street||info.street||'';
   const shangquan=info['所属商圈']||'';
@@ -184,19 +185,17 @@ const ROOM_LABELS = {1:'一房',2:'两房',3:'三房',4:'四房',5:'五房+'};
     }
   }
 
-  // Build neighbor data
+  // Build neighbor data (uses slim community index with precomputed stats)
   function buildNeighborData(comList, myName, myInfo) {
     const myLat=myInfo.lat||govItem.lat||0, myLng=myInfo.lng||govItem.lng||0;
     if(!myLat||!myLng) return [];
     const result=[];
     for(const c of comList){
-      if(c.name===myName||!c.rentals||c.rentals.length<3) continue;
-      const ws=c.rentals.filter(r=>r.price_sqm&&r.area>15);
-      if(ws.length<3) continue;
+      if(c.name===myName||!c.rental_median_sqm||!c.rental_count||c.rental_count<3) continue;
+      if(!c.lat||!c.lng) continue;
       const dlat=c.lat-myLat,dlng=c.lng-myLng;
       const dist=Math.sqrt(dlat*dlat+dlng*dlng);
-      const sorted=ws.map(r=>r.price_sqm).sort((a,b)=>a-b);
-      result.push({name:c.name,dist,median:sorted[Math.floor(sorted.length/2)],count:c.rentals.length});
+      result.push({name:c.name,dist,median:c.rental_median_sqm,count:c.rental_count});
     }
     result.sort((a,b)=>a.dist-b.dist);
     const nearest=result.slice(0,7);

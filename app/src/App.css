@@ -181,6 +181,18 @@ body {
   color: rgba(0,0,0,0.3);
 }
 
+.street-label {
+  background: none !important;
+  border: none !important;
+  pointer-events: none;
+  text-align: center;
+  font-size: 16px;
+  font-weight: 800;
+  color: rgba(0, 0, 0, 0.32);
+  letter-spacing: 0.2em;
+  white-space: nowrap;
+}
+
 /* Legend — subtle overlay */
 .legend {
   position: absolute;

@@ -378,7 +378,7 @@ def main() -> None:
     log.info("Cookie check passed")
 
     # Load previous data for diff and scraped_at preservation
-    prev_listings = load_json("leyoujia_nanshan_rentals.json") or []
+    prev_listings = load_json("leyoujia_rentals.json") or []
     prev_ids = {item["id"] for item in prev_listings}
     prev_scraped_at = {
         item["id"]: item["scraped_at"] for item in prev_listings if "scraped_at" in item
@@ -427,7 +427,7 @@ def main() -> None:
             listing["scraped_at"] = prev_scraped_at.get(listing["id"], today)
             deduped.append(listing)
 
-    save_json(deduped, "leyoujia_nanshan_rentals.json")
+    save_json(deduped, "leyoujia_rentals.json")
 
     # Collect unique communities
     communities: dict[str, dict] = {}
@@ -441,12 +441,25 @@ def main() -> None:
             }
         communities[cname]["count"] += 1
 
-    save_json(communities, "leyoujia_nanshan_communities.json")
+    save_json(communities, "leyoujia_communities.json")
 
     # Report
     current_ids = {item["id"] for item in deduped}
     new_ids = current_ids - prev_ids
     removed_ids = prev_ids - current_ids
+
+    # Archive removed listings
+    if removed_ids:
+        prev_by_id = {item["id"]: item for item in prev_listings}
+        archive = load_json("leyoujia_rentals_removed.json") or []
+        archived_ids = {item["id"] for item in archive}
+        for rid in removed_ids:
+            if rid not in archived_ids and rid in prev_by_id:
+                entry = prev_by_id[rid]
+                entry["removed_at"] = today
+                archive.append(entry)
+        save_json(archive, "leyoujia_rentals_removed.json")
+        log.info("Archived %d removed listings (%d total in archive)", len(removed_ids), len(archive))
 
     log.info("=" * 60)
     log.info("Total: %d listings, %d communities", len(deduped), len(communities))

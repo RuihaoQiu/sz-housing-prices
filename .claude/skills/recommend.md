@@ -9,8 +9,8 @@ You are an apartment recommendation assistant for Shenzhen rentals. You help use
 
 ## Data Sources
 
-- **Listings**: `scraper/output/leyoujia_nanshan_rentals.json` — all Nanshan rental listings
-- **Communities**: `scraper/output/leyoujia_nanshan_communities.json` — community summary
+- **Listings**: `scraper/output/leyoujia_rentals.json` — all Nanshan rental listings
+- **Communities**: `scraper/output/leyoujia_communities.json` — community summary
 - **Government reference prices**: `data/xiaoqu_geocoded.csv` — official reference rent prices with geocoding
 
 ## Steps
@@ -20,43 +20,48 @@ You are an apartment recommendation assistant for Shenzhen rentals. You help use
 If the user provided preferences as skill args, use those. Otherwise use the default preferences below.
 
 **Default user preferences:**
-- 地点：后海片区，近后海地铁站，或者2号线登良、海月、湾厦站附近
+- 地铁：2号线 登良、海月、湾厦站，11号线 后海、南山、红树湾南站，≤500m
 - 户型：2-4房，面积≥80㎡，价格8000-13000元/月
 - 小区年龄：2000年之后建成
-- 朝向：倾向朝南
+- 朝向：不要朝北
 - 楼层：倾向高层
-- 偏好小区：蔚蓝海岸、观海台、后海公馆、海印长城
-- 最好有停车位
+- 装修：倾向精装
+- 偏好小区：蔚蓝海岸、观海台、后海公馆、海印长城、海境界（偏好小区不受地铁过滤限制）
 
-### 2. Filter listings with Python
+### 2. Filter and rank with Python
 
-Run a Python script to pre-filter the data. This avoids loading 8000+ listings into context.
+Filter by metro station proximity first, then rank by preference factors.
 
 ```python
 import json
 from datetime import date
 
-with open("scraper/output/leyoujia_nanshan_rentals.json") as f:
+with open("scraper/output/leyoujia_rentals.json") as f:
     data = json.load(f)
 
-# Hard filters
-SUBAREAS = {"后海", "海岸城", "深圳湾"}
+# --- Hard filters ---
 MIN_ROOMS = 2
 MAX_ROOMS = 4
 MIN_PRICE = 6000
 MAX_PRICE = 15000
 MIN_AREA = 80
 MIN_YEAR = 2000
-PREFERRED_COMMUNITIES = {"蔚蓝海岸", "观海台", "后海公馆", "海印长城"}
-TARGET_METRO_STATIONS = {"后海", "登良", "海月", "湾厦"}
 
-# User's ideal criteria (for match/mismatch reporting)
-IDEAL = {
-    "price_range": (8000, 13000),
-    "orientation": {"南", "南北"},
-    "floor": "高楼层",
-    "decoration": "精装",
+# Primary location filter: metro stations
+TARGET_STATIONS = {
+    "登良", "海月", "湾厦",           # 2号线
+    "后海", "南山站", "红树湾南",      # 11号线
 }
+
+# Preferred communities always pass the metro filter
+PREFERRED_COMMUNITIES = {"蔚蓝海岸", "观海台", "后海公馆", "海印长城", "海境界"}
+
+# --- Ranking factors (soft preferences) ---
+MAX_METRO_DIST = 500
+BAD_ORIENTATION = {"北"}
+IDEAL_FLOOR = "高楼层"
+IDEAL_DECORATION = "精装"
+IDEAL_PRICE_RANGE = (8000, 13000)
 
 today = date.today().isoformat()
 filtered = []
@@ -65,57 +70,62 @@ for item in data:
     rooms = item.get("rooms", 0)
     price = item.get("price", 0)
     area = item.get("area", 0)
-    year = item.get("year_built", 2100)
-    subarea = item.get("subarea", "")
+    year = item.get("year_built", 0)
 
+    # Hard filters: rooms, price, area
     if not (MIN_ROOMS <= rooms <= MAX_ROOMS):
         continue
     if not (MIN_PRICE <= price <= MAX_PRICE):
         continue
     if area < MIN_AREA:
         continue
-    if year < MIN_YEAR:
-        continue
-    if subarea not in SUBAREAS:
+    if year and year < MIN_YEAR:
         continue
 
-    # Match / mismatch analysis
+    # Location filter: near target metro station (≤500m) OR preferred community
+    community = item.get("community", "")
+    in_preferred = any(p in community for p in PREFERRED_COMMUNITIES)
+    metro = item.get("metro_station", "")
+    metro_dist = item.get("metro_distance", 9999)
+    near_target = any(s in metro for s in TARGET_STATIONS)
+
+    if in_preferred:
+        pass  # always include
+    elif near_target and metro_dist <= MAX_METRO_DIST:
+        pass  # close enough to target station
+    else:
+        continue
+
+    # Orientation hard filter: reject 朝北
+    orientation = item.get("orientation", "")
+    if orientation in BAD_ORIENTATION:
+        continue
+
+    # --- Match / mismatch analysis ---
     matches = []
     mismatches = []
 
-    community = item.get("community", "")
-    if community in PREFERRED_COMMUNITIES:
-        matches.append(f"偏好小区")
-
-    orientation = item.get("orientation", "")
-    if orientation in IDEAL["orientation"]:
-        matches.append(f"朝{orientation}")
-    elif orientation:
-        mismatches.append(f"朝{orientation}(偏好朝南)")
+    if in_preferred:
+        matches.append("偏好小区")
+    if near_target:
+        matches.append(f"距{metro.split('站')[0].split('线')[-1]}站{metro_dist}m")
 
     floor = item.get("floor", "")
-    if floor == IDEAL["floor"]:
+    if floor == IDEAL_FLOOR:
         matches.append("高楼层")
     elif floor:
         mismatches.append(f"{floor}(偏好高层)")
 
-    lo, hi = IDEAL["price_range"]
+    lo, hi = IDEAL_PRICE_RANGE
     if lo <= price <= hi:
-        matches.append(f"价格在预算内")
+        matches.append("价格在预算内")
     elif price < lo:
         matches.append(f"低于预算({price}元)")
     else:
         mismatches.append(f"超预算({price}元, 上限{hi})")
 
-    metro = item.get("metro_station", "")
-    metro_dist = item.get("metro_distance", 9999)
-    if any(s in metro for s in TARGET_METRO_STATIONS):
-        matches.append(f"近目标地铁({metro_dist}m)")
-    elif metro_dist < 1000:
-        mismatches.append(f"非目标地铁线({metro})")
-
     decoration = item.get("decoration", "")
-    if decoration == IDEAL["decoration"]:
+    if decoration == IDEAL_DECORATION:
         matches.append("精装")
     elif decoration:
         mismatches.append(f"{decoration}(偏好精装)")
@@ -124,21 +134,21 @@ for item in data:
         matches.append(f"{year}年较新")
     elif year >= 2000:
         mismatches.append(f"{year}年略老")
+    elif not year:
+        mismatches.append("年份未知")
 
-    # Score
+    # --- Score (ranking) ---
     score = 0
-    if community in PREFERRED_COMMUNITIES: score += 50
-    if orientation in IDEAL["orientation"]: score += 20
-    if floor == IDEAL["floor"]: score += 10
-    if any(s in metro for s in TARGET_METRO_STATIONS): score += 15
-    if metro_dist < 500: score += 10
-    elif metro_dist < 1000: score += 5
-    if decoration == IDEAL["decoration"]: score += 5
-    if year >= 2010: score += 5
+    if in_preferred:                        score += 50
+    if near_target and metro_dist <= 200:   score += 15
+    elif near_target and metro_dist <= 500: score += 10
+    if floor == IDEAL_FLOOR:                score += 10
+    if decoration == IDEAL_DECORATION:      score += 5
+    if year >= 2010:                        score += 5
+    if lo <= price <= hi:                   score += 5
 
     is_new = item.get("scraped_at") == today
     if is_new:
-        score += 30
         item["_is_new"] = True
 
     item["_score"] = score

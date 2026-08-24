@@ -110,6 +110,64 @@ function RoadLayer() {
   return null
 }
 
+const STREET_CENTERS = [
+  { name: '南山', lat: 22.5240, lng: 113.9279 },
+  { name: '南头', lat: 22.5464, lng: 113.9340 },
+  { name: '粤海', lat: 22.5351, lng: 113.9524 },
+  { name: '蛇口', lat: 22.4990, lng: 113.9438 },
+  { name: '招商', lat: 22.5032, lng: 113.9335 },
+  { name: '沙河', lat: 22.5500, lng: 113.9886 },
+  { name: '桃源', lat: 22.5823, lng: 113.9878 },
+  { name: '西丽', lat: 22.5924, lng: 113.9641 },
+]
+const STREET_ZOOM_MAX = 15
+
+function StreetLabels() {
+  const map = useMap()
+  const layerRef = useRef(null)
+
+  const update = useCallback(() => {
+    if (layerRef.current) {
+      map.removeLayer(layerRef.current)
+      layerRef.current = null
+    }
+    if (map.getZoom() > STREET_ZOOM_MAX) return
+
+    if (!map.getPane('streetLabels')) {
+      map.createPane('streetLabels')
+      map.getPane('streetLabels').style.zIndex = 500
+      map.getPane('streetLabels').style.pointerEvents = 'none'
+    }
+
+    const layer = L.layerGroup()
+    STREET_CENTERS.forEach(s => {
+      L.marker([s.lat, s.lng], {
+        pane: 'streetLabels',
+        icon: L.divIcon({
+          className: 'street-label',
+          html: s.name,
+          iconSize: [80, 20],
+          iconAnchor: [40, 10],
+        }),
+        interactive: false,
+      }).addTo(layer)
+    })
+    layer.addTo(map)
+    layerRef.current = layer
+  }, [map])
+
+  useEffect(() => {
+    update()
+    map.on('zoomend', update)
+    return () => {
+      map.off('zoomend', update)
+      if (layerRef.current) map.removeLayer(layerRef.current)
+    }
+  }, [map, update])
+
+  return null
+}
+
 function MapController({ center, filtered, onSelect }) {
   const map = useMap()
   const layerRef = useRef(null)
@@ -657,6 +715,7 @@ export default function App() {
         className="map"
       >
         <RoadLayer />
+        <StreetLabels />
         <MapController
           center={flyTarget}
           filtered={filtered}

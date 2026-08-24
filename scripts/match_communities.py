@@ -274,6 +274,55 @@ MANUAL_MAP: dict[str, str] = {
     "1050055": "桑泰丹华园二期",
     # 桑泰水木丹华 -> 水木丹华园
     "516153": "水木丹华园",
+    # 金桃园大厦 -> 金桃园一期 (both on 桃园路)
+    "95747": "金桃园一期",
+    # 双玺时光道 -> 海上世界双玺花园三期 (gov address is "望海路双玺时光道")
+    "1064384": "海上世界双玺花园三期",
+    # 桃苑公寓 -> 桃苑小区 (both on 南山大道)
+    "95340": "桃苑小区",
+    # 水湾1979 -> 水湾壹玖柒玖广场一期（商品住房）
+    "907385": "水湾壹玖柒玖广场一期\n（商品住房）",
+    # --- Orphan communities (from rentals, no detail page) ---
+    # 中熙君南山 -> gov name includes alias in parens
+    "728535": "中熙香山美林苑(中熙君南山)",
+    # 乐尚林居 -> gov adds 东关· prefix
+    "1057277": "东关·乐尚林居",
+    # 京基御景峯 (orphan ID, distinct from detail ID 1070975)
+    "1070974": "京基御景峯（商品住房）",
+    # 京基御领公馆 -> gov adds 长源 prefix
+    "1586205": "长源京基御领公馆",
+    # 凯德公园1号 -> 凯德公园一号广场
+    "875405": "凯德公园一号广场",
+    # 华润深圳湾瑞府 -> 瑞府
+    "1827094": "瑞府",
+    # 恒裕滨城 -> rentals show (一期) and (二期) by community_id
+    "791514": "恒裕滨城花园一期",
+    "1067000": "恒裕滨城花园二期",
+    # 汇宾广场 -> rentals show (一期) and (二期) by community_id
+    "97674": "汇宾广场一期",
+    "1027793": "汇宾广场二期",
+    # 汉森吉祥龙花园 -> 吉祥龙花园 (strip 汉森 prefix)
+    "657599": "吉祥龙花园",
+    # 滨海之窗 -> 滨海之窗花园
+    "95406": "滨海之窗花园",
+    # 西海明珠 -> 西海明珠花园
+    "98139": "西海明珠花园",
+    # 假日湾 -> 假日湾华庭
+    "95748": "假日湾华庭",
+    # 西湖林语 -> 西湖林语名苑
+    "95604": "西湖林语名苑",
+    # 文竹园 -> 文竹园小区
+    "95392": "文竹园小区",
+    # 德意名居 -> rentals show (一期) and (二期) by community_id
+    "97514": "德意名居一期",
+    "842488": "德意名居二期",
+    # 水湾1979 orphan IDs (same as 907385 above)
+    "1133359": "水湾壹玖柒玖广场一期\n（商品住房）",
+    "1834140": "水湾壹玖柒玖广场一期\n（商品住房）",
+    # 沙河荔园新村 -> 荔园新村 (gov in 沙河街道)
+    "1264314": "荔园新村",
+    # 后海公馆 -> 映月湾花园 (same community, different name)
+    "97503": "映月湾花园",
 }
 
 
@@ -291,9 +340,9 @@ def load_gov_data() -> list[dict]:
         return [r for r in csv.DictReader(f) if r["district"] == "南山区"]
 
 
-def load_anjuke_details() -> list[dict]:
+def load_anjuke_communities() -> list[dict]:
     """Load Anjuke community details with cleaned names."""
-    with open(SCRAPER_DIR / "nanshan_details.json", encoding="utf-8") as f:
+    with open(SCRAPER_DIR / "anjuke_communities.json", encoding="utf-8") as f:
         details = json.load(f)
     for d in details:
         d["name"] = clean_anjuke_name(d["name"])
@@ -308,13 +357,28 @@ def build_gov_index(gov_records: list[dict]) -> dict[str, dict]:
     return {name: recs[0] for name, recs in by_name.items() if len(recs) == 1}
 
 
-def load_rentals() -> dict[str, list[dict]]:
-    """Load rental listings grouped by community_id."""
-    with open(SCRAPER_DIR / "nanshan_rentals.json", encoding="utf-8") as f:
+def load_rentals() -> tuple[dict[str, list[dict]], dict[str, str]]:
+    """Load rental listings grouped by community_id. Returns (by_community, community_names).
+
+    Includes both active and removed (delisted) listings.
+    """
+    with open(SCRAPER_DIR / "anjuke_rentals.json", encoding="utf-8") as f:
         rentals = json.load(f)
+    with open(SCRAPER_DIR / "anjuke_rentals_removed.json", encoding="utf-8") as f:
+        rentals += json.load(f)
 
     by_community: dict[str, list[dict]] = {}
+    community_names: dict[str, str] = {}  # community_id -> name from rental data
+
     for r in rentals:
+        cid = r.get("community_id")
+        if not cid:
+            continue
+
+        # Track community name from rental data (for orphaned communities)
+        if cid not in community_names and r.get("小区"):
+            community_names[cid] = re.sub(r"\(.*\)", "", r["小区"]).strip()
+
         # Parse area
         area = None
         area_str = r.get("面积", "")
@@ -341,16 +405,16 @@ def load_rentals() -> dict[str, list[dict]]:
         if r["price"] and area:
             listing["price_sqm"] = round(r["price"] / area, 1)
 
-        by_community.setdefault(r["community_id"], []).append(listing)
+        by_community.setdefault(cid, []).append(listing)
 
-    return by_community
+    return by_community, community_names
 
 
 def main() -> None:
     gov = load_gov_data()
-    anjuke = load_anjuke_details()
+    anjuke = load_anjuke_communities()
     gov_index = build_gov_index(gov)
-    rentals = load_rentals()
+    rentals, rental_community_names = load_rentals()
 
     # Validate manual mappings point to real gov names
     gov_name_set = set(r["name"] for r in gov)
@@ -365,9 +429,11 @@ def main() -> None:
     unmatched_names = []
     with_rentals = 0
     merged = []
+    seen_community_ids: set[str] = set()
 
     for a in anjuke:
         gov_rec = None
+        seen_community_ids.add(a["id"])
 
         # Try exact match first
         if a["name"] in gov_index:
@@ -409,18 +475,50 @@ def main() -> None:
 
         merged.append(entry)
 
+    # Add orphaned communities (have rentals but no community detail entry)
+    orphaned_ids = set(rentals.keys()) - seen_community_ids
+    orphaned_count = 0
+    for cid in sorted(orphaned_ids):
+        name = rental_community_names.get(cid, f"unknown-{cid}")
+        entry = {
+            "anjuke_id": cid,
+            "name": name,
+            "matched": False,
+            "rentals": rentals[cid],
+        }
+        # Try gov match: exact name first, then manual mapping
+        gov_rec = gov_index.get(name)
+        if not gov_rec and cid in MANUAL_MAP:
+            gov_rec = gov_index.get(MANUAL_MAP[cid])
+        if gov_rec:
+            entry["matched"] = True
+            entry["name"] = gov_rec["name"]
+            entry["street"] = gov_rec["street"]
+            entry["address"] = gov_rec["address"]
+            entry["lat"] = float(gov_rec["lat"])
+            entry["lng"] = float(gov_rec["lng"])
+            for field in ("multi_rent", "high_rent", "low_rent"):
+                val = gov_rec[field]
+                entry[field] = float(val) if val else None
+            matched_count += 1
+        merged.append(entry)
+        with_rentals += 1
+        orphaned_count += 1
+
     out_path = OUTPUT_DIR / "communities.json"
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump(merged, f, ensure_ascii=False, indent=2)
 
+    total_rentals = sum(len(e.get("rentals", [])) for e in merged)
     print(f"Gov Nanshan entries: {len(gov)}")
-    print(f"Anjuke entries: {len(anjuke)}")
-    print(f"Matched: {matched_count}/{len(anjuke)} ({matched_count*100//len(anjuke)}%)")
-    print(f"With rentals: {with_rentals}")
-    print(f"Unmatched: {len(unmatched_names)}")
+    print(f"Anjuke community details: {len(anjuke)}")
+    print(f"Orphaned communities (from rentals): {orphaned_count}")
+    print(f"Total communities: {len(merged)}")
+    print(f"Matched to gov: {matched_count}")
+    print(f"With rentals: {with_rentals} ({total_rentals} listings)")
     print()
     if unmatched_names:
-        print("Unmatched Anjuke names:")
+        print(f"Unmatched ({len(unmatched_names)}):")
         for n in sorted(unmatched_names):
             print(f"  {n}")
 
