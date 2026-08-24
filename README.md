@@ -22,80 +22,102 @@ Make Shenzhen Nanshan's rental market transparent — government reference price
 
 ## Data
 
-| Source | File | Description |
-|---|---|---|
-| 深圳住建局 | `data/xiaoqu_geocoded.csv` | Government rental reference prices with coordinates (789 Nanshan entries) |
-| 深圳住建局 | `data/chengzhongcun_geocoded.csv` | Urban village reference prices |
-| 安居客 | `scraper/output/nanshan_rentals.json` | 11,000+ actual rental listings |
-| 安居客 | `scraper/output/nanshan_communities.json` | Community metadata (475 communities) |
-| 安居客 | `scraper/output/nanshan_details.json` | Community descriptions (小区解读) |
-| 乐有家 | `scraper/output/leyoujia_nanshan_rentals.json` | 8,000+ Nanshan rental listings with daily diff tracking |
-| 乐有家 | `scraper/output/leyoujia_nanshan_communities.json` | 900+ communities with listing counts |
+**36,000+ rental listings** across 1,609 communities from three sources:
 
-## Project Structure
+| Source | Records | Description |
+|---|---|---|
+| 深圳住建局 (Government) | 789 communities | Official rental reference prices with geocoded coordinates |
+| 安居客 (Anjuke) | 23,106 listings | Active + removed rental listings across 896 communities |
+| 乐有家 (Leyoujia) | 12,197 listings | Active + removed rental listings across 1,044 communities |
+
+### Data architecture
 
 ```
-data/               Government CSV data (geocoded)
-scraper/            Scrapers (Python, requests + BeautifulSoup)
-  leyoujia_scraper.py    乐有家 scraper — concurrent workers, daily diff detection
-  export_cookies.py      Cookie export helper (Anjuke + Leyoujia)
-  run_daily.sh           Cron wrapper for daily scraping
-scripts/            Data processing (match_communities.py merges gov + Anjuke data)
+data/
+  xiaoqu_geocoded.csv           Government reference prices (source of truth for coordinates, GCJ-02)
+  chengzhongcun_geocoded.csv    Urban village reference prices
+  manual_map.json               Human-curated anjuke_id → gov_name mappings (211 entries)
+  base/                         Normalized base layer (gitignored, rebuild with scripts)
+    gov.json                    Government records for Nanshan
+    communities.json            Unified community registry (1,609 entries)
+    anjuke_rentals.json         Normalized anjuke listings
+    leyoujia_rentals.json       Normalized leyoujia listings
+
+app/public/
+  data.json                     Map dots — 838 entries, GCJ-02 coordinates (do not regenerate)
+  communities.json              Community index with inline rentals (5 MB, serves the detail page)
+  details.json                  Anjuke community descriptions (小区解读)
+```
+
+The base layer (`data/base/`) is the single source of truth for all downstream data. The app layer (`app/public/`) contains frontend-optimized views built from the base layer. Both are produced by build scripts — the base layer is gitignored, while app files are tracked for GitHub Pages compatibility.
+
+## Project structure
+
+```
+data/               Government CSVs + manual mappings
+scripts/
+  build_base.py     Raw sources → normalized base layer (data/base/)
+  build_app.py      Base layer → frontend JSON (app/public/)
+  match_communities.py  Community matching utilities
+scraper/
+  anjuke_scraper.py       安居客 scraper
+  leyoujia_scraper.py     乐有家 scraper — concurrent workers, daily diff detection
+  export_cookies.py       Cookie export helper
+  run_daily.sh            Cron wrapper for daily scraping
 app/                Vite + React frontend
   src/App.jsx       Map view with theme system
-  public/           Static assets + merged JSON data
-.claude/skills/     Claude Code skills
-  recommend.md      AI apartment recommendation skill
+  public/           Static assets + built JSON data
 ```
 
 ## Run locally
 
 ```bash
-cd app
-npm install
-npm run dev
+cd app && npm install && npm run dev
 ```
 
 Open `http://localhost:5173`. Tap a community dot → detail page.
 
-To share on your local network (e.g. test on phone):
+## Rebuild data
+
+After scraping new listings or updating manual mappings:
 
 ```bash
-npm run dev -- --host
+python3 scripts/build_base.py
 ```
+
+```bash
+python3 scripts/build_app.py
+```
+
+The first script produces the base layer from raw sources. The second reads the base layer and writes the app JSON files. The dev server picks up changes live.
 
 ## Scraper
 
 ### Setup (one-time)
 
-1. Login to `shenzhen.leyoujia.com` in Chrome
-2. Open DevTools → Network tab → copy the `Cookie` header value from any request
-3. Export cookies:
+1. Login to the target site in Chrome
+2. Export cookies:
    ```bash
    cd scraper
    uv run python export_cookies.py --leyoujia
    ```
-   Paste the cookie string when prompted.
 
-### Run manually
+### Run
 
 ```bash
 cd scraper
 uv run python leyoujia_scraper.py --workers 5
 ```
 
-Scrapes all 21 Nanshan sub-areas with 5 concurrent workers (~8 min). Compares against previous data and reports new/removed listings. Each listing gets a `scraped_at` date for tracking when it first appeared.
-
 ### Daily cron
 
 ```bash
-# Install (runs at 2:00 CEST / 8:00 CST daily)
 echo "0 2 * * * /path/to/scraper/run_daily.sh" | crontab -
 ```
 
 Logs are saved to `scraper/logs/YYYY-MM-DD.log`.
 
-## AI Recommendations
+## AI recommendations
 
 Use the Claude Code skill to get personalized apartment recommendations:
 
@@ -103,21 +125,7 @@ Use the Claude Code skill to get personalized apartment recommendations:
 /recommend
 ```
 
-Filters the scraped data by your preferences (location, price, rooms, area, year, orientation, floor) and highlights today's new listings with match/mismatch analysis.
-
-## Update map data
-
-1. Run the Anjuke scraper:
-   ```bash
-   cd scraper
-   uv run python main.py
-   ```
-
-2. Merge scraper output with government data:
-   ```bash
-   python3 scripts/match_communities.py
-   ```
-   This writes `app/public/communities.json`. The dev server picks it up live — no restart needed.
+Filters the scraped data by your preferences (location, price, rooms, area, year, orientation, floor) and highlights today's new listings.
 
 ## Themes
 
@@ -128,8 +136,12 @@ Change `THEME_NAME` in both `app/src/App.jsx` and `app/public/xiaoqu-detail.html
 | `mono` | Paper/charcoal grayscale |
 | `porcelain` | Blue tones on warm cream |
 | `palm` | Olive green with amber accent |
-| `wire` | Grayscale + orange (#F5572F) accent |
+| `wire` | Grayscale + orange accent |
+
+## Deploy
+
+Pushes to `main` auto-deploy to GitHub Pages via `.github/workflows/deploy.yml`. The workflow runs `npm run build` and deploys `app/dist/`.
 
 ## Status
 
-MVP — Nanshan district only. Validating market demand before expanding to other districts.
+MVP — Nanshan district only.
