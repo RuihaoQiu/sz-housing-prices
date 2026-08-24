@@ -14,7 +14,6 @@ scraper/.venv/
 data/base/
 app/public/communities.json
 app/public/rentals/
-app/public/data.json
 app/public/details.json
 
 # Python

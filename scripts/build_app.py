@@ -168,16 +168,30 @@ def main() -> None:
     ly_rentals = load_base("leyoujia_rentals.json")
 
     # 1. data.json — map dots
-    data = build_data_json()
+    # data.json uses GCJ-02 coordinates (for Leaflet with Chinese tiles).
+    # It is maintained manually and NOT regenerated from the CSV (which is WGS-84).
     data_path = OUTPUT_DIR / "data.json"
-    with open(data_path, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False)
-    log.info("data.json: %d entries (%.0f KB)", len(data), data_path.stat().st_size / 1024)
+    if data_path.exists():
+        with open(data_path, encoding="utf-8") as f:
+            data = json.load(f)
+        log.info("data.json: %d entries (%.0f KB) [kept]", len(data), data_path.stat().st_size / 1024)
+    else:
+        log.warning("data.json not found — run build_data_json() or restore from git")
+        data = []
+
+    # Build GCJ-02 coordinate index from data.json (the authoritative map coords)
+    gcj02_coords: dict[str, tuple[float, float]] = {}
+    for d in data:
+        gcj02_coords[d["name"]] = (d["lat"], d["lng"])
 
     # 2. communities.json + rentals/
     comm_index, rentals_by_name = build_communities_and_rentals(
         communities, aj_rentals, ly_rentals,
     )
+    # Patch coordinates to GCJ-02 (matching data.json / map tiles)
+    for c in comm_index:
+        if c["name"] in gcj02_coords:
+            c["lat"], c["lng"] = gcj02_coords[c["name"]]
     comm_path = OUTPUT_DIR / "communities.json"
     with open(comm_path, "w", encoding="utf-8") as f:
         json.dump(comm_index, f, ensure_ascii=False)
