@@ -10,11 +10,8 @@ scraper/cookies*.json
 scraper/logs/
 scraper/.venv/
 
-# Generated data
+# Generated data (rebuild: python3 scripts/build_base.py && python3 scripts/build_app.py)
 data/base/
-app/public/communities.json
-app/public/rentals/
-app/public/details.json
 
 # Python
 __pycache__/
