@@ -26,7 +26,7 @@ If the user provided preferences as skill args, use those. Otherwise use the def
 - 朝向：不要朝北
 - 楼层：倾向高层
 - 装修：倾向精装
-- 偏好小区：蔚蓝海岸、观海台、后海公馆、海印长城、海境界（偏好小区不受地铁过滤限制）
+- 偏好小区：蔚蓝海岸、观海台、后海公馆、海印长城、海境界、后海理想雅园（偏好小区不受地铁过滤限制）
 
 ### 2. Filter and rank with Python
 
@@ -54,7 +54,7 @@ TARGET_STATIONS = {
 }
 
 # Preferred communities always pass the metro filter
-PREFERRED_COMMUNITIES = {"蔚蓝海岸", "观海台", "后海公馆", "海印长城", "海境界"}
+PREFERRED_COMMUNITIES = {"蔚蓝海岸", "观海台", "后海公馆", "海印长城", "海境界", "后海理想雅园"}
 
 # --- Ranking factors (soft preferences) ---
 MAX_METRO_DIST = 500
