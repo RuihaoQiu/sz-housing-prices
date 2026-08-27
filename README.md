@@ -22,11 +22,12 @@ Make Shenzhen Nanshan's rental market transparent — government reference price
 
 ## Data
 
-**36,000+ rental listings** across 1,609 communities from three sources:
+**36,000+ rental listings** across 1,609 communities and **171,000+ unit records** from four sources:
 
 | Source | Records | Description |
 |---|---|---|
 | 深圳住建局 (Government) | 789 communities | Official rental reference prices with geocoded coordinates |
+| 深圳住建局 (Pre-sale) | 635 projects / 171,331 units | Per-unit area data for 得房率 (net-to-gross ratio) calculation |
 | 安居客 (Anjuke) | 23,106 listings | Active + removed rental listings across 896 communities |
 | 乐有家 (Leyoujia) | 12,197 listings | Active + removed rental listings across 1,044 communities |
 
@@ -62,6 +63,7 @@ scripts/
 scraper/
   anjuke_scraper.py       安居客 scraper
   leyoujia_scraper.py     乐有家 scraper — concurrent workers, daily diff detection
+  gov_scraper.py          住建局 pre-sale scraper — per-unit area data via Chrome CDP
   export_cookies.py       Cookie export helper
   run_daily.sh            Cron wrapper for daily scraping
 app/                Vite + React frontend
@@ -108,6 +110,19 @@ The first script produces the base layer from raw sources. The second reads the 
 cd scraper
 uv run python leyoujia_scraper.py --workers 5
 ```
+
+### Gov pre-sale scraper (得房率)
+
+Requires a running Chrome instance with remote debugging:
+
+```bash
+cd scraper
+python gov_scraper.py --workers 4
+```
+
+Scrapes per-unit area data (建筑面积, 套内建筑面积, 分摊面积) from `fdc.zjj.sz.gov.cn` for all Nanshan pre-sale projects. Connects to Chrome via CDP to bypass bot detection. Supports `--resume` for checkpoint recovery.
+
+Output: `scraper/output/gov_projects.json` (635 projects, 1,798 buildings, 171,331 units).
 
 ### Daily cron
 
