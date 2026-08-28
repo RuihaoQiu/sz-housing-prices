@@ -240,6 +240,7 @@ class GovScraper:
             buildings = []
 
             first_units = api_cache["units"][0]["data"] if api_cache["units"] else []
+            first_units = await self._select_all_sections(page, api_cache, first_units)
             buildings.append(
                 self._build_building_record(bldg_list[0], first_units, bldg_meta)
             )
@@ -260,8 +261,11 @@ class GovScraper:
                         for bi in api_cache["building_info"][-1].get("data", []):
                             bldg_meta[str(bi.get("id"))] = bi
 
+                    unit_data = await self._select_all_sections(
+                        page, api_cache, resp.get("data", [])
+                    )
                     buildings.append(
-                        self._build_building_record(bldg, resp.get("data", []), bldg_meta)
+                        self._build_building_record(bldg, unit_data, bldg_meta)
                     )
                 except Exception as e:
                     log.warning(f"  {project['name']}/{label} failed: {e}")
@@ -277,6 +281,57 @@ class GovScraper:
             return project
         finally:
             page.remove_listener("response", capture)
+
+    async def _select_all_sections(
+        self, page: Page, api_cache: dict, current_units: list[dict]
+    ) -> list[dict]:
+        """Select '全部' in the section dropdown to get all units.
+
+        The site defaults to the first section (单元/座). If a '全部' option
+        exists, selecting it triggers a new API call returning all sections.
+        The section selector is the first .el-select with width: 175px.
+        """
+        try:
+            info = await page.evaluate("""() => {
+                const sel = document.querySelector('.el-select[style*="175px"]');
+                if (!sel) return null;
+                const vue = sel.__vue__;
+                if (!vue || !vue.options) return null;
+                const input = sel.querySelector('.el-input__inner');
+                return {
+                    value: input ? input.value : '',
+                    options: vue.options.map(o => o.label || o.currentLabel),
+                };
+            }""")
+        except Exception:
+            return current_units
+
+        if not info or len(info["options"]) <= 1:
+            return current_units
+
+        if info["value"] == "全部":
+            return current_units
+
+        if "全部" not in info["options"]:
+            return current_units
+
+        log.debug(f"  Selecting 全部 (sections: {info['options']})")
+        api_cache["units"].clear()
+        try:
+            await page.evaluate("""() => {
+                const sel = document.querySelector('.el-select[style*="175px"]');
+                const vue = sel.__vue__;
+                vue.$emit('input', '全部');
+                vue.$emit('change', '全部');
+            }""")
+            await asyncio.sleep(2)
+
+            if api_cache["units"]:
+                return api_cache["units"][-1].get("data", [])
+        except Exception as e:
+            log.debug(f"  全部 selection failed: {e}")
+
+        return current_units
 
     def _build_building_record(
         self, bldg: dict, units_data: list[dict], bldg_meta: dict
